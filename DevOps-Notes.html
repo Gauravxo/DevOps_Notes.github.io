@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps Notes — Rich Editor with Images & Bold</title>
+    <style>
+        :root {
+            --bg: #f8f9fb;
+            --surface: #ffffff;
+            --surface2: #f1f3f6;
+            --text: #1a1d28;
+            --text2: #5f6577;
+            --text3: #8b90a0;
+            --accent: #5b6af0;
+            --accent-light: #eef0ff;
+            --accent-glow: rgba(91,106,240,0.25);
+            --border: #e2e5ed;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.04),0 1px 2px rgba(0,0,0,0.06);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.06),0 2px 6px rgba(0,0,0,0.04);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.1),0 4px 12px rgba(0,0,0,0.05);
+            --radius-sm: 8px;
+            --radius: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+            --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        [data-theme="dark"] {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --surface2: #1c2333;
+            --text: #e6edf3;
+            --text2: #8b949e;
+            --text3: #6e7681;
+            --accent: #7c8cff;
+            --accent-light: #1a1f3a;
+            --accent-glow: rgba(124,140,255,0.3);
+            --border: #30363d;
+            --shadow-sm: 0 1px 3px rgba(0,0,0,0.3);
+            --shadow-md: 0 4px 16px rgba(0,0,0,0.4);
+            --shadow-lg: 0 12px 40px rgba(0,0,0,0.5);
+        }
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family: var(--font);
+            background: var(--bg);
+            color: var(--text);
+            height: 100vh; display: flex; overflow: hidden;
+            transition: background var(--transition), color var(--transition);
+            user-select: text; -webkit-tap-highlight-color: transparent;
+        }
+
+        /* SIDEBAR */
+        .sidebar {
+            width: 320px; min-width: 320px;
+            background: var(--surface); border-right:1px solid var(--border);
+            display: flex; flex-direction: column; height: 100vh;
+            transition: all var(--transition); z-index:10; box-shadow: var(--shadow-sm);
+        }
+        @media (max-width: 768px) {
+            .sidebar { width:100%; min-width:100%; position:absolute; left:-100%; }
+            .sidebar.open { left:0; }
+            .mobile-overlay { display:block !important; }
+        }
+        .mobile-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.5); z-index:9; }
+        .sidebar-header {
+            padding:20px 20px 14px; display:flex; align-items:center; justify-content:space-between;
+            gap:10px; border-bottom:1px solid var(--border); flex-shrink:0;
+        }
+        .sidebar-header .logo {
+            display:flex; align-items:center; gap:10px; font-weight:700; font-size:1.15rem; letter-spacing:-0.01em;
+        }
+        .sidebar-header .logo .icon-circle {
+            width:36px; height:36px; border-radius:10px; background:var(--accent); color:#fff;
+            display:flex; align-items:center; justify-content:center; font-size:1.2rem;
+            box-shadow:0 4px 14px var(--accent-glow); flex-shrink:0;
+        }
+        .btn-icon {
+            width:36px; height:36px; border-radius:50%; border:1px solid var(--border); background:var(--surface);
+            color:var(--text2); cursor:pointer; display:flex; align-items:center; justify-content:center;
+            font-size:1.1rem; transition:all var(--transition); flex-shrink:0;
+        }
+        .btn-icon:hover { background:var(--surface2); color:var(--text); border-color:var(--accent); }
+        .search-wrap { padding:10px 16px; flex-shrink:0; position:relative; }
+        .search-wrap input {
+            width:100%; padding:10px 14px 10px 38px; border-radius:24px; border:1.5px solid var(--border);
+            background:var(--surface2); color:var(--text); font-size:0.9rem; outline:none; transition:all var(--transition);
+            font-family:var(--font);
+        }
+        .search-wrap input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); background:var(--surface); }
+        .search-wrap .search-icon { position:absolute; left:28px; top:50%; transform:translateY(-50%); color:var(--text3); pointer-events:none; font-size:0.95rem; }
+        .notes-list { flex:1; overflow-y:auto; padding:6px 10px; display:flex; flex-direction:column; gap:3px; }
+        .notes-list::-webkit-scrollbar { width:4px; }
+        .notes-list::-webkit-scrollbar-thumb { background:var(--border); border-radius:10px; }
+        .note-card {
+            padding:12px 14px; border-radius:var(--radius); cursor:pointer; transition:all var(--transition);
+            border:1.5px solid transparent; position:relative; display:flex; flex-direction:column; gap:4px;
+            background:transparent;
+        }
+        .note-card:hover { background:var(--surface2); border-color:var(--border); }
+        .note-card.active { background:var(--accent-light); border-color:var(--accent); box-shadow:var(--shadow-sm); }
+        .note-card .note-title { font-weight:600; font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text); }
+        .note-card .note-meta { display:flex; align-items:center; gap:8px; font-size:0.73rem; color:var(--text3); }
+        .note-card .tag-dot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+        .note-card .note-preview { font-size:0.78rem; color:var(--text2); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+        .note-card .image-badge { font-size:0.7rem; color:var(--accent); display:flex; align-items:center; gap:3px; margin-top:2px; }
+        .empty-state { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--text3); text-align:center; padding:20px; gap:8px; }
+        .empty-state .empty-icon { font-size:3rem; opacity:0.5; }
+        .sidebar-footer { padding:10px 14px; border-top:1px solid var(--border); font-size:0.72rem; color:var(--text3); display:flex; justify-content:space-between; align-items:center; flex-shrink:0; }
+
+        /* MAIN */
+        .main { flex:1; display:flex; flex-direction:column; height:100vh; background:var(--bg); min-width:0; }
+        .main-header {
+            padding:14px 20px; display:flex; align-items:center; gap:12px; border-bottom:1px solid var(--border);
+            flex-shrink:0; flex-wrap:wrap; background:var(--surface); overflow-x: auto;
+        }
+        .main-header .menu-toggle { display:none; background:none; border:none; font-size:1.4rem; cursor:pointer; color:var(--text); padding:4px 8px; border-radius:6px; }
+        @media (max-width:768px) { .main-header .menu-toggle { display:block; } }
+        .tag-selector { display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+        .tag-chip {
+            padding:5px 12px; border-radius:20px; font-size:0.78rem; font-weight:500; cursor:pointer;
+            border:1.5px solid var(--border); background:var(--surface); color:var(--text2); transition:all var(--transition);
+            white-space:nowrap; letter-spacing:-0.01em; display:flex; align-items:center; gap:4px;
+        }
+        .tag-chip .dot { width:8px; height:8px; border-radius:50%; }
+        .tag-chip:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
+        .tag-chip.selected { background:var(--accent); color:#fff; border-color:var(--accent); box-shadow:0 2px 8px var(--accent-glow); }
+        .tag-chip.selected .dot { background:#fff !important; }
+
+        .editor-area { flex:1; display:flex; flex-direction:column; padding:20px; gap:8px; overflow-y:auto; min-width:0; }
+        .editor-area input.title-input {
+            font-size:1.6rem; font-weight:700; border:none; background:transparent; color:var(--text);
+            outline:none; width:100%; font-family:var(--font); letter-spacing:-0.02em; padding:4px 0;
+        }
+        .toolbar {
+            display:flex; gap:6px; align-items:center; padding:4px 0; flex-wrap:wrap;
+            border-bottom:1px solid var(--border); padding-bottom:8px;
+        }
+        .toolbar button {
+            width:32px; height:32px; border-radius:6px; border:1px solid var(--border); background:var(--surface);
+            color:var(--text); cursor:pointer; font-weight:600; display:flex; align-items:center; justify-content:center;
+            transition:all var(--transition); font-size:0.9rem;
+        }
+        .toolbar button:hover { background:var(--surface2); border-color:var(--accent); }
+        .toolbar button.active { background:var(--accent-light); border-color:var(--accent); color:var(--accent); }
+        .toolbar .font-size-select { margin-left:auto; display:flex; align-items:center; gap:6px; font-size:0.8rem; color:var(--text2); }
+        .toolbar .font-size-select select {
+            padding:5px 10px; border-radius:16px; border:1.5px solid var(--border); background:var(--surface);
+            color:var(--text); font-size:0.8rem; cursor:pointer; outline:none;
+        }
+        #editorBody {
+            flex:1; min-height:200px; border:none; outline:none; font-family:var(--font);
+            padding:8px 0; overflow-y:auto; line-height:1.7; font-size:16px;
+            color:var(--text); word-wrap:break-word;
+        }
+        #editorBody:empty::before {
+            content: attr(data-placeholder);
+            color: var(--text3);
+            pointer-events: none;
+        }
+        #editorBody img { max-width:100%; border-radius:var(--radius-sm); margin:8px 0; }
+        .action-bar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; padding-top:8px; border-top:1px solid var(--border); }
+        .btn {
+            padding:9px 18px; border-radius:24px; font-weight:600; font-size:0.85rem; cursor:pointer; border:none;
+            transition:all var(--transition); display:flex; align-items:center; gap:6px; font-family:var(--font);
+            letter-spacing:-0.01em; white-space:nowrap;
+        }
+        .btn-primary { background:var(--accent); color:#fff; box-shadow:0 4px 14px var(--accent-glow); }
+        .btn-primary:hover { filter:brightness(1.08); transform:translateY(-1px); box-shadow:0 6px 20px var(--accent-glow); }
+        .btn-outline { background:var(--surface); color:var(--text); border:1.5px solid var(--border); }
+        .btn-outline:hover { border-color:var(--accent); color:var(--accent); background:var(--accent-light); }
+        .btn-danger { background:transparent; color:#e0556a; border:1.5px solid transparent; }
+        .btn-danger:hover { background:#fff0f2; border-color:#e0556a; }
+        [data-theme="dark"] .btn-danger:hover { background:#2a1218; }
+        .char-count { font-size:0.75rem; color:var(--text3); margin-left:8px; }
+
+        /* TOAST */
+        .toast-container { position:fixed; top:20px; right:20px; z-index:999; display:flex; flex-direction:column; gap:8px; }
+        .toast {
+            padding:12px 18px; border-radius:24px; background:var(--surface); color:var(--text);
+            box-shadow:var(--shadow-lg); font-size:0.85rem; font-weight:500;
+            animation:slideIn 0.35s cubic-bezier(0.16,1,0.3,1);
+            display:flex; align-items:center; gap:8px; border:1px solid var(--border); max-width:380px;
+        }
+        @keyframes slideIn { from{opacity:0;transform:translateX(60px);} to{opacity:1;transform:translateX(0);} }
+        @keyframes fadeOut { from{opacity:1;transform:translateX(0);} to{opacity:0;transform:translateX(40px);} }
+        .toast.leaving { animation:fadeOut 0.3s ease forwards; }
+
+        @media (max-width:768px) {
+            .editor-area { padding:14px; }
+            .editor-area input.title-input { font-size:1.3rem; }
+            .main-header { padding:10px 14px; gap:8px; }
+            .btn { padding:7px 14px; font-size:0.78rem; }
+            .tag-chip { padding:4px 10px; font-size:0.72rem; }
+            .toolbar button { width:28px; height:28px; font-size:0.8rem; }
+        }
+    </style>
+</head>
+<body data-theme="light">
+
+<div class="mobile-overlay" id="mobileOverlay" onclick="toggleSidebar()"></div>
+
+<!-- SIDEBAR -->
+<aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        <div class="logo"><div class="icon-circle">📝</div><span>MemNotes</span></div>
+        <div style="display:flex;gap:6px;">
+            <button class="btn-icon" onclick="toggleTheme()" title="Toggle theme">🌓</button>
+            <button class="btn-icon" onclick="newNote()" title="New note">＋</button>
+        </div>
+    </div>
+    <div class="search-wrap">
+        <span class="search-icon">🔍</span>
+        <input type="text" id="searchInput" placeholder="Search notes..." oninput="renderNotesList()" autocomplete="off">
+    </div>
+    <div class="notes-list" id="notesList"></div>
+    <div class="sidebar-footer">
+        <span id="noteCount">0 notes</span>
+        <span>DevOps Study 🚀</span>
+    </div>
+</aside>
+
+<!-- MAIN -->
+<main class="main">
+    <div class="main-header">
+        <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+        <span style="font-weight:600;font-size:0.85rem;color:var(--text3);">TOOLS:</span>
+        <div class="tag-selector" id="tagSelector">
+            <span class="tag-chip selected" data-tag="all" onclick="filterByTag('all', this)"><span class="dot" style="background:#8b90a0;"></span>All</span>
+            <span class="tag-chip" data-tag="git" onclick="filterByTag('git', this)"><span class="dot" style="background:#f05138;"></span>Git</span>
+            <span class="tag-chip" data-tag="github" onclick="filterByTag('github', this)"><span class="dot" style="background:#333;"></span>GitHub</span>
+            <span class="tag-chip" data-tag="gitlab" onclick="filterByTag('gitlab', this)"><span class="dot" style="background:#fc6d26;"></span>GitLab</span>
+            <span class="tag-chip" data-tag="terraform" onclick="filterByTag('terraform', this)"><span class="dot" style="background:#5c4ee5;"></span>Terraform</span>
+            <span class="tag-chip" data-tag="docker" onclick="filterByTag('docker', this)"><span class="dot" style="background:#2391e6;"></span>Docker</span>
+            <span class="tag-chip" data-tag="kubernetes" onclick="filterByTag('kubernetes', this)"><span class="dot" style="background:#326ce5;"></span>K8s</span>
+            <span class="tag-chip" data-tag="helm" onclick="filterByTag('helm', this)"><span class="dot" style="background:#0f1689;"></span>Helm</span>
+            <span class="tag-chip" data-tag="prometheus" onclick="filterByTag('prometheus', this)"><span class="dot" style="background:#e6522c;"></span>Prometheus</span>
+            <span class="tag-chip" data-tag="aws" onclick="filterByTag('aws', this)"><span class="dot" style="background:#ff9900;"></span>AWS</span>
+            <span class="tag-chip" data-tag="linux" onclick="filterByTag('linux', this)"><span class="dot" style="background:#f5bd1f;"></span>Linux</span>
+            <span class="tag-chip" data-tag="shell" onclick="filterByTag('shell', this)"><span class="dot" style="background:#4eaa25;"></span>Shell</span>
+            <span class="tag-chip" data-tag="python" onclick="filterByTag('python', this)"><span class="dot" style="background:#306998;"></span>Python</span>
+            <span class="tag-chip" data-tag="yaml" onclick="filterByTag('yaml', this)"><span class="dot" style="background:#cb171e;"></span>YAML</span>
+            <span class="tag-chip" data-tag="general" onclick="filterByTag('general', this)"><span class="dot" style="background:#e87bbb;"></span>General</span>
+        </div>
+    </div>
+    <div class="editor-area" id="editorArea">
+        <input type="text" class="title-input" id="titleInput" placeholder="Note title..." oninput="onEditorChange()">
+        <div class="toolbar">
+            <button id="boldBtn" title="Bold (Ctrl+B)" onclick="toggleBold()"><b>B</b></button>
+            <button id="italicBtn" title="Italic (Ctrl+I)" onclick="toggleItalic()"><i>I</i></button>
+            <div class="font-size-select">   
+                <select id="fontSizeSelect" onchange="changeFontSize(this.value)">
+                    <option value="12">12px</option>
+                    <option value="14">14px</option>
+                    <option value="16" selected>16px</option>
+                    <option value="18">18px</option>
+                    <option value="20">20px</option>
+                    <option value="24">24px</option>
+                </select>
+            </div>
+        </div>
+        <div id="editorBody" contenteditable="true" data-placeholder="Paste or type your notes here... 💡 You can paste images directly or use the toolbar to insert them." oninput="onEditorChange()"></div>
+        <div class="action-bar">
+            <button class="btn btn-primary" onclick="saveNote()">💾 Save</button>
+            <button class="btn btn-outline" onclick="newNote()">✨ New</button>
+            <button class="btn btn-outline" onclick="copyContent()">📋 Copy text</button>
+            <button class="btn btn-danger" id="deleteBtn" onclick="deleteNote()" style="display:none;">🗑 Delete</button>
+            <span class="char-count" id="charCount">0 chars</span>
+        </div>
+    </div>
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+    (function() {
+        const STORAGE_KEY = 'memnotes_devops_rich_v2';
+        const THEME_KEY = 'memnotes_theme';
+        let notes = [];
+        let activeNoteId = null;
+        let currentFilterTag = 'all';
+        let isDirty = false;
+        let saveTimeout = null;
+
+        const notesListEl = document.getElementById('notesList');
+        const titleInput = document.getElementById('titleInput');
+        const editorBody = document.getElementById('editorBody');
+        const charCountEl = document.getElementById('charCount');
+        const deleteBtn = document.getElementById('deleteBtn');
+        const noteCountEl = document.getElementById('noteCount');
+        const searchInput = document.getElementById('searchInput');
+        const sidebar = document.getElementById('sidebar');
+        const mobileOverlay = document.getElementById('mobileOverlay');
+        const toastContainer = document.getElementById('toastContainer');
+        const fontSizeSelect = document.getElementById('fontSizeSelect');
+        const boldBtn = document.getElementById('boldBtn');
+        const italicBtn = document.getElementById('italicBtn');
+
+        function loadNotes() {
+            try {
+                const raw = localStorage.getItem(STORAGE_KEY);
+                notes = raw ? JSON.parse(raw) : [];
+            } catch (e) { notes = []; }
+            notes = notes.map(n => ({
+                id: n.id || generateId(),
+                title: n.title || '',
+                bodyHTML: n.bodyHTML || '',
+                tag: n.tag || 'general',
+                fontSize: n.fontSize || 16,
+                createdAt: n.createdAt || Date.now(),
+                updatedAt: n.updatedAt || Date.now(),
+            }));
+            saveToStorage(true);
+        }
+
+        function saveToStorage(silent = false) {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(notes));
+            if (!silent) updateNoteCount();
+        }
+
+        function generateId() { return 'note_' + Date.now() + '_' + Math.random().toString(36).slice(2,8); }
+
+        function loadTheme() {
+            const saved = localStorage.getItem(THEME_KEY) || 'light';
+            document.body.setAttribute('data-theme', saved);
+        }
+
+        function toggleTheme() {
+            const current = document.body.getAttribute('data-theme');
+            const next = current === 'dark' ? 'light' : 'dark';
+            document.body.setAttribute('data-theme', next);
+            localStorage.setItem(THEME_KEY, next);
+            showToast(next === 'dark' ? '🌙 Dark mode' : '☀️ Light mode');
+        }
+
+        // Sidebar rendering
+        function getFilteredNotes() {
+            const searchTerm = searchInput.value.toLowerCase().trim();
+            let filtered = notes;
+            if (currentFilterTag !== 'all') filtered = filtered.filter(n => n.tag === currentFilterTag);
+            if (searchTerm) {
+                filtered = filtered.filter(n => {
+                    const plainText = stripHtml(n.bodyHTML).toLowerCase();
+                    return n.title.toLowerCase().includes(searchTerm) || plainText.includes(searchTerm);
+                });
+            }
+            filtered.sort((a,b) => b.updatedAt - a.updatedAt);
+            return filtered;
+        }
+
+        function stripHtml(html) {
+            const tmp = document.createElement('div');
+            tmp.innerHTML = html;
+            return tmp.textContent || tmp.innerText || '';
+        }
+
+        function renderNotesList() {
+            const filtered = getFilteredNotes();
+            if (filtered.length === 0) {
+                notesListEl.innerHTML = `<div class="empty-state"><span class="empty-icon">📭</span><p>No notes</p></div>`;
+            } else {
+                notesListEl.innerHTML = filtered.map(n => {
+                    const plain = stripHtml(n.bodyHTML);
+                    const preview = plain.replace(/\n/g, ' ').slice(0,60) || 'Empty note...';
+                    const tagColor = getTagColor(n.tag);
+                    const timeAgo = formatTimeAgo(n.updatedAt);
+                    const hasImages = n.bodyHTML.includes('<img');
+                    const imageBadge = hasImages ? `<span class="image-badge">🖼️ image</span>` : '';
+                    return `<div class="note-card ${n.id === activeNoteId ? 'active' : ''}" onclick="selectNote('${n.id}')" data-id="${n.id}">
+                        <div class="note-title">${escapeHtml(n.title) || 'Untitled'}</div>
+                        <div class="note-preview">${escapeHtml(preview)}</div>
+                        <div class="note-meta">
+                            <span class="tag-dot" style="background:${tagColor};"></span>
+                            <span>${n.tag}</span><span>·</span><span>${timeAgo}</span>
+                        </div>${imageBadge}
+                    </div>`;
+                }).join('');
+            }
+            updateNoteCount();
+        }
+
+        function updateNoteCount() { noteCountEl.textContent = `${notes.length} note${notes.length !== 1 ? 's' : ''}`; }
+
+        function getTagColor(tag) {
+            const map = {
+                'git':'#f05138','github':'#333','gitlab':'#fc6d26','jenkins':'#d33833','ansible':'#1c1917',
+                'terraform':'#5c4ee5','docker':'#2391e6','kubernetes':'#326ce5','helm':'#0f1689',
+                'prometheus':'#e6522c','grafana':'#f46800','aws':'#ff9900','azure':'#0089d6',
+                'gcp':'#4285f4','linux':'#f5bd1f','shell':'#4eaa25','python':'#306998','yaml':'#cb171e',
+                'general':'#e87bbb','all':'#8b90a0'
+            };
+            return map[tag] || '#8b90a0';
+        }
+
+        function escapeHtml(str) { const div = document.createElement('div'); div.textContent = str; return div.innerHTML; }
+        function formatTimeAgo(ts) {
+            const diff = Date.now() - ts;
+            const mins = Math.floor(diff/60000);
+            if (mins < 1) return 'just now';
+            if (mins < 60) return `${mins}m ago`;
+            const hrs = Math.floor(mins/60);
+            if (hrs < 24) return `${hrs}h ago`;
+            return new Date(ts).toLocaleDateString('en-US',{month:'short',day:'numeric'});
+        }
+
+        // Note operations
+        function selectNote(id) {
+            if (isDirty && activeNoteId && activeNoteId !== id) saveNoteSilent();
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+            activeNoteId = id;
+            titleInput.value = note.title;
+            editorBody.innerHTML = note.bodyHTML || '';
+            applyFontSize(note.fontSize || 16);
+            fontSizeSelect.value = note.fontSize || 16;
+            deleteBtn.style.display = 'inline-flex';
+            isDirty = false;
+            updateCharCount();
+            renderNotesList();
+            if (window.innerWidth <= 768) closeSidebar();
+            setTimeout(() => editorBody.focus(), 100);
+        }
+
+        function newNote() {
+            if (isDirty && activeNoteId) saveNoteSilent();
+            const id = generateId();
+            const note = {
+                id, title:'', bodyHTML:'', tag: currentFilterTag !== 'all' ? currentFilterTag : 'general',
+                fontSize: parseInt(fontSizeSelect.value) || 16, createdAt: Date.now(), updatedAt: Date.now()
+            };
+            notes.unshift(note);
+            saveToStorage();
+            activeNoteId = id;
+            titleInput.value = ''; editorBody.innerHTML = '';
+            applyFontSize(note.fontSize);
+            deleteBtn.style.display = 'inline-flex';
+            isDirty = false;
+            updateCharCount();
+            renderNotesList();
+            titleInput.focus();
+            if (window.innerWidth <= 768) closeSidebar();
+            showToast('✨ New note created');
+        }
+
+        function saveNote() {
+            if (!activeNoteId) {
+                if (titleInput.value.trim() || editorBody.innerText.trim()) newNoteFromEditor();
+                return;
+            }
+            const note = notes.find(n => n.id === activeNoteId);
+            if (!note) return;
+            note.title = titleInput.value.trim();
+            note.bodyHTML = editorBody.innerHTML;
+            note.tag = currentFilterTag !== 'all' ? currentFilterTag : note.tag;
+            note.fontSize = parseInt(fontSizeSelect.value) || 16;
+            note.updatedAt = Date.now();
+            saveToStorage();
+            isDirty = false;
+            renderNotesList();
+            showToast('✅ Note saved!');
+        }
+
+        function saveNoteSilent() {
+            if (!activeNoteId) return;
+            const note = notes.find(n => n.id === activeNoteId);
+            if (!note) return;
+            if (note.title === titleInput.value.trim() && note.bodyHTML === editorBody.innerHTML) return;
+            note.title = titleInput.value.trim();
+            note.bodyHTML = editorBody.innerHTML;
+            note.tag = currentFilterTag !== 'all' ? currentFilterTag : note.tag;
+            note.fontSize = parseInt(fontSizeSelect.value) || 16;
+            note.updatedAt = Date.now();
+            saveToStorage(true);
+            isDirty = false;
+            renderNotesList();
+        }
+
+        function newNoteFromEditor() {
+            const id = generateId();
+            const note = {
+                id, title: titleInput.value.trim(), bodyHTML: editorBody.innerHTML,
+                tag: currentFilterTag !== 'all' ? currentFilterTag : 'general',
+                fontSize: parseInt(fontSizeSelect.value) || 16, createdAt: Date.now(), updatedAt: Date.now()
+            };
+            notes.unshift(note);
+            saveToStorage();
+            activeNoteId = id;
+            deleteBtn.style.display = 'inline-flex';
+            isDirty = false;
+            renderNotesList();
+            showToast('✅ Note saved!');
+        }
+
+        function deleteNote() {
+            if (!activeNoteId) return;
+            if (!confirm('Delete this note?')) return;
+            notes = notes.filter(n => n.id !== activeNoteId);
+            activeNoteId = null;
+            titleInput.value = ''; editorBody.innerHTML = '';
+            deleteBtn.style.display = 'none';
+            isDirty = false;
+            saveToStorage();
+            renderNotesList();
+            showToast('🗑 Note deleted');
+        }
+
+        function onEditorChange() {
+            isDirty = true;
+            updateCharCount();
+            if (saveTimeout) clearTimeout(saveTimeout);
+            saveTimeout = setTimeout(() => { if (isDirty && activeNoteId) saveNoteSilent(); }, 1500);
+        }
+
+        function updateCharCount() {
+            const text = editorBody.innerText || '';
+            charCountEl.textContent = `${text.length.toLocaleString()} chars`;
+        }
+
+        function copyContent() {
+            const text = editorBody.innerText || '';
+            if (!text.trim()) { showToast('⚠️ Nothing to copy'); return; }
+            navigator.clipboard.writeText(text).then(() => showToast('📋 Text copied!')).catch(() => {
+                const range = document.createRange();
+                range.selectNodeContents(editorBody);
+                const sel = window.getSelection();
+                sel.removeAllRanges(); sel.addRange(range);
+                document.execCommand('copy');
+                sel.removeAllRanges();
+                showToast('📋 Copied!');
+            });
+        }
+
+        // Rich text commands
+        function toggleBold() { document.execCommand('bold'); updateToolbarState(); editorBody.focus(); }
+        function toggleItalic() { document.execCommand('italic'); updateToolbarState(); editorBody.focus(); }
+
+        function updateToolbarState() {
+            const isBold = document.queryCommandState('bold');
+            const isItalic = document.queryCommandState('italic');
+            boldBtn.classList.toggle('active', isBold);
+            italicBtn.classList.toggle('active', isItalic);
+        }
+
+        // Image insertion
+        function triggerImageInsert() {
+            document.getElementById('imageFileInput').click();
+        }
+
+        function insertImageFromFile(input) {
+            const file = input.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = document.createElement('img');
+                img.src = e.target.result;
+                img.style.maxWidth = '100%';
+                insertNodeAtCursor(img);
+                input.value = '';
+                onEditorChange();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function insertNodeAtCursor(node) {
+            const sel = window.getSelection();
+            if (sel.rangeCount) {
+                const range = sel.getRangeAt(0);
+                range.deleteContents();
+                range.insertNode(node);
+                range.setStartAfter(node);
+                range.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(range);
+            } else {
+                editorBody.appendChild(node);
+            }
+            editorBody.focus();
+        }
+
+        // Handle paste of images
+        editorBody.addEventListener('paste', function(e) {
+            const items = e.clipboardData?.items;
+            if (!items) return;
+            for (let item of items) {
+                if (item.type.startsWith('image/')) {
+                    e.preventDefault();
+                    const file = item.getAsFile();
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                        const img = document.createElement('img');
+                        img.src = ev.target.result;
+                        img.style.maxWidth = '100%';
+                        insertNodeAtCursor(img);
+                        onEditorChange();
+                    };
+                    reader.readAsDataURL(file);
+                    break;
+                }
+            }
+        });
+
+        // Drop images into editor
+        editorBody.addEventListener('drop', function(e) {
+            const files = e.dataTransfer?.files;
+            if (files && files.length > 0 && files[0].type.startsWith('image/')) {
+                e.preventDefault();
+                const file = files[0];
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const img = document.createElement('img');
+                    img.src = ev.target.result;
+                    img.style.maxWidth = '100%';
+                    insertNodeAtCursor(img);
+                    onEditorChange();
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
+        // Font size
+        function changeFontSize(val) {
+            const size = parseInt(val) || 16;
+            applyFontSize(size);
+            if (activeNoteId) {
+                const note = notes.find(n => n.id === activeNoteId);
+                if (note) { note.fontSize = size; note.updatedAt = Date.now(); isDirty = true; saveToStorage(true); }
+            }
+        }
+
+        function applyFontSize(size) {
+            editorBody.style.fontSize = size + 'px';
+            titleInput.style.fontSize = (size + 4) + 'px';
+        }
+
+        // Monitor selection for toolbar state
+        document.addEventListener('selectionchange', () => {
+            if (document.activeElement === editorBody) updateToolbarState();
+        });
+
+        // Tag filter
+        function filterByTag(tag, el) {
+            currentFilterTag = tag;
+            document.querySelectorAll('#tagSelector .tag-chip').forEach(c => c.classList.remove('selected'));
+            if (el) el.classList.add('selected');
+            if (activeNoteId && tag !== 'all') {
+                const note = notes.find(n => n.id === activeNoteId);
+                if (note) { note.tag = tag; note.updatedAt = Date.now(); saveToStorage(true); isDirty = false; }
+            }
+            renderNotesList();
+            if (activeNoteId && tag !== 'all') {
+                const note = notes.find(n => n.id === activeNoteId);
+                if (note && note.tag !== tag) {
+                    saveNoteSilent(); activeNoteId = null;
+                    titleInput.value = ''; editorBody.innerHTML = '';
+                    deleteBtn.style.display = 'none';
+                }
+            }
+        }
+
+        function toggleSidebar() {
+            sidebar.classList.toggle('open');
+            mobileOverlay.style.display = sidebar.classList.contains('open') ? 'block' : 'none';
+        }
+        function closeSidebar() { sidebar.classList.remove('open'); mobileOverlay.style.display = 'none'; }
+        window.toggleSidebar = toggleSidebar;
+
+        function showToast(msg) {
+            const toast = document.createElement('div'); toast.className = 'toast'; toast.textContent = msg;
+            toastContainer.appendChild(toast);
+            setTimeout(() => { toast.classList.add('leaving'); toast.addEventListener('animationend', () => toast.remove()); }, 2200);
+        }
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if ((e.ctrlKey || e.metaKey) && e.key === 's') { e.preventDefault(); saveNote(); }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'n') { e.preventDefault(); newNote(); }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); searchInput.focus(); }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'b') { e.preventDefault(); toggleBold(); }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'i') { e.preventDefault(); toggleItalic(); }
+        });
+
+        window.selectNote = selectNote; window.newNote = newNote; window.saveNote = saveNote;
+        window.deleteNote = deleteNote; window.onEditorChange = onEditorChange; window.copyContent = copyContent;
+        window.filterByTag = filterByTag; window.toggleTheme = toggleTheme; window.renderNotesList = renderNotesList;
+        window.changeFontSize = changeFontSize; window.toggleBold = toggleBold; window.toggleItalic = toggleItalic;
+        window.triggerImageInsert = triggerImageInsert; window.insertImageFromFile = insertImageFromFile;
+
+        // Boot
+        loadTheme(); loadNotes(); renderNotesList(); updateCharCount(); deleteBtn.style.display = 'none';
+        if (notes.length > 0 && !activeNoteId) {
+            const sorted = [...notes].sort((a,b) => b.updatedAt - a.updatedAt);
+            selectNote(sorted[0].id);
+        }
+        console.log('🚀 Rich notes editor ready! Paste images, bold, italic.');
+    })();
+</script>
+</body>
+</html>
